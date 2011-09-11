@@ -1,0 +1,351 @@
+<!--
+
+Copyright (C) 2011 by Aapo Laitinen <aapo.laitinen@iki.fi>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+-->
+<!DOCTYPE html>
+<html>
+<head>
+	<title>WebCL manifest</title>
+
+<style>
+
+* {
+	font-family: Helvetica, Arial, sans-serif;
+}
+
+body {
+	margin: 20px;
+}
+
+table {
+	border-spacing: 0;
+}
+
+td {
+	font-size: 11px;
+	vertical-align: top;
+	padding: 2px 3px 2px 3px;
+}
+
+.group-title {
+	color: #fff;
+	background: #369;
+	border-top: 1px solid #69c;
+	border-bottom: 1px solid #036;
+}
+
+.platform-param-name {
+	background: #ddd;
+	border-bottom: 1px solid #bbb;
+}
+
+.platform-param-value {
+	background: #eee;
+	border-bottom: 1px solid #bbb;
+}
+
+.device-param-name {
+	background: #eee;
+	border-bottom: 1px solid #ccc;
+}
+
+.device-param-value {
+	border-bottom: 1px solid #ccc;
+}
+
+tr:hover .platform-param-name, tr:hover .device-param-name {
+	background-color: #cde;
+}
+
+tr:hover .platform-param-value, tr:hover .device-param-value {
+	background-color: #dfefff;
+}
+
+</style>
+
+<script>
+
+var PLATFORM_PARAMS = [
+	'PLATFORM_NAME',
+	'PLATFORM_VERSION',
+	'PLATFORM_VENDOR',
+	'PLATFORM_PROFILE',
+	'PLATFORM_EXTENSIONS'
+];
+
+var DEVICE_PARAMS = [
+	'DEVICE_NAME',
+	'DEVICE_TYPE',
+	'DEVICE_VERSION',
+	'DRIVER_VERSION',
+	'DEVICE_VENDOR',
+	'DEVICE_VENDOR_ID',
+	'DEVICE_PROFILE',
+	'DEVICE_EXTENSIONS',
+	'DEVICE_MAX_COMPUTE_UNITS',
+	'DEVICE_MAX_WORK_ITEM_DIMENSIONS',
+	'DEVICE_MAX_WORK_ITEM_SIZES',
+	'DEVICE_MAX_WORK_GROUP_SIZE',
+	'DEVICE_NATIVE_VECTOR_WIDTH_CHAR',
+	'DEVICE_PREFERRED_VECTOR_WIDTH_CHAR',
+	'DEVICE_NATIVE_VECTOR_WIDTH_SHORT',
+	'DEVICE_PREFERRED_VECTOR_WIDTH_SHORT',
+	'DEVICE_NATIVE_VECTOR_WIDTH_INT',
+	'DEVICE_PREFERRED_VECTOR_WIDTH_INT',
+	'DEVICE_NATIVE_VECTOR_WIDTH_LONG',
+	'DEVICE_PREFERRED_VECTOR_WIDTH_LONG',
+	'DEVICE_NATIVE_VECTOR_WIDTH_FLOAT',
+	'DEVICE_PREFERRED_VECTOR_WIDTH_FLOAT',
+	'DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE',
+	'DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE',
+	'DEVICE_NATIVE_VECTOR_WIDTH_HALF',
+	'DEVICE_PREFERRED_VECTOR_WIDTH_HALF',
+	'DEVICE_MAX_CLOCK_FREQUENCY',
+	'DEVICE_ADDRESS_BITS',
+	'DEVICE_MAX_MEM_ALLOC_SIZE',
+	'DEVICE_IMAGE_SUPPORT',
+	'DEVICE_MAX_READ_IMAGE_ARGS',
+	'DEVICE_MAX_WRITE_IMAGE_ARGS',
+	'DEVICE_IMAGE2D_MAX_WIDTH',
+	'DEVICE_IMAGE2D_MAX_HEIGHT',
+	'DEVICE_IMAGE3D_MAX_WIDTH',
+	'DEVICE_IMAGE3D_MAX_HEIGHT',
+	'DEVICE_IMAGE3D_MAX_DEPTH',
+	'DEVICE_MAX_SAMPLERS',
+	'DEVICE_MAX_PARAMETER_SIZE',
+	'DEVICE_MEM_BASE_ADDR_ALIGN',
+	'DEVICE_MIN_DATA_TYPE_ALIGN_SIZE',
+	'DEVICE_SINGLE_FP_CONFIG',
+	'DEVICE_GLOBAL_MEM_CACHE_TYPE',
+	'DEVICE_GLOBAL_MEM_CACHE_SIZE',
+	'DEVICE_GLOBAL_MEM_CACHELINE_SIZE',
+	'DEVICE_GLOBAL_MEM_SIZE',
+	'DEVICE_MAX_CONSTANT_BUFFER_SIZE',
+	'DEVICE_MAX_CONSTANT_ARGS',
+	'DEVICE_LOCAL_MEM_TYPE',
+	'DEVICE_LOCAL_MEM_SIZE',
+	'DEVICE_ERROR_CORRECTION_SUPPORT',
+	'DEVICE_PROFILING_TIMER_RESOLUTION',
+	'DEVICE_ENDIAN_LITTLE',
+	'DEVICE_AVAILABLE',
+	'DEVICE_COMPILER_AVAILABLE',
+	'DEVICE_EXECUTION_CAPABILITIES',
+	'DEVICE_QUEUE_PROPERTIES',
+	'DEVICE_HOST_UNIFIED_MEMORY',
+	'DEVICE_OPENCL_C_VERSION',
+	'DEVICE_PLATFORM'
+];
+
+function removePrefix(s) {
+	if (s.indexOf('DEVICE_') >= 0) {
+		return s.substring(7);
+	}
+	if (s.indexOf('PLATFORM_') >= 0) {
+		return s.substring(9);
+	}
+	return s;
+}
+
+function addArrayLikeToArray(arrayLike, array) {
+	if (!arrayLike) {
+		return;
+	}
+	for (var i = 0; i < arrayLike.length; ++i) {
+		array.push(arrayLike[i]);
+	}
+}
+
+function interpretBitfield(value, spec) {
+	var types = [];
+	var rest = value;
+	for (var key in spec) {
+		var bit = spec[key];
+		if (typeof bit === 'undefined') {
+			types.push('MISSING CONSTANT FOR ' + key + '!');
+		}
+		if (value & bit) {
+			types.push(key);
+			rest &= ~bit;
+		}
+	}
+	if (rest) {
+		types.push('Unknown');
+	}
+	if (!types.length) {
+		types.push('None');
+	}
+	return types.join(', ') + ' (' + value + ')';
+}
+
+function interpretEnum(value, spec) {
+	for (var key in spec) {
+		if (typeof spec[key] === 'undefined') {
+			return 'MISSING CONSTANT FOR ' + key + '!';
+		}
+		if (spec[key] === value) {
+			return key + ' (' + value + ')';
+		}
+	}
+	return 'Unknown (' + value + ')';
+}
+
+function interpretValue(cl, param, value) {
+	switch (param) {
+		case 'DEVICE_TYPE':
+				return interpretBitfield(value, {
+					'CPU': cl.DEVICE_TYPE_CPU,
+					'GPU': cl.DEVICE_TYPE_GPU,
+					'Accelerator': cl.DEVICE_TYPE_ACCELERATOR,
+					'Default': cl.DEVICE_TYPE_DEFAULT
+				});
+			break;
+		case 'DEVICE_GLOBAL_MEM_CACHE_TYPE':
+				return interpretEnum(value, {
+					'None': cl.NONE,
+					'Read only cache': cl.READ_ONLY_CACHE,
+					'Read write cache': cl.READ_WRITE_CACHE
+				});
+			break;
+		case 'DEVICE_EXECUTION_CAPABILITIES':
+				return interpretBitfield(value, {
+					'Kernel': cl.EXEC_KERNEL,
+					'Native kernel': cl.EXEC_NATIVE_KERNEL
+				});
+			break;
+		case 'DEVICE_QUEUE_PROPERTIES':
+				return interpretBitfield(value, {
+					'Out of order exec mode': cl.QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
+					'Profiling': cl.QUEUE_PROFILING_ENABLE
+				});
+			break;
+		case 'DEVICE_LOCAL_MEM_TYPE':
+				return interpretEnum(value, {
+					'Local': cl.LOCAL,
+					'Global': cl.GLOBAL
+				});
+			break;
+		default:
+			return value;
+	}
+}
+
+function createTable() {
+	if (typeof WebCLComputeContext === 'undefined') {
+		alert('Your browser does not seem to support WebCL.');
+		return;
+	}
+
+	var cl = new WebCLComputeContext();
+	if (!cl) {
+		alert('Could not create WebCL compute context.');
+		return;
+	}
+
+	var platformIDs = cl.getPlatformIDs();
+	var platformDeviceIDs = [];
+
+	for (var i = 0; i < platformIDs.length; ++i) {
+		// Get device IDs separately to work around some kind of a bug in either
+		// Apple's or Samsung's implementation.
+		var array = [];
+		addArrayLikeToArray(cl.getDeviceIDs(platformIDs[i], cl.DEVICE_TYPE_CPU), array);
+		addArrayLikeToArray(cl.getDeviceIDs(platformIDs[i], cl.DEVICE_TYPE_GPU), array);
+		addArrayLikeToArray(cl.getDeviceIDs(platformIDs[i], cl.DEVICE_TYPE_ACCELERATOR), array);
+		platformDeviceIDs.push(array);
+	}
+
+	var table = document.createElement('table');
+	document.body.appendChild(table);
+	var currentRow = null;
+
+	function addRow() {
+		currentRow = document.createElement('tr');
+		table.appendChild(currentRow);
+	}
+
+	function addCell(className, caption, colspan) {
+		var cell = document.createElement('td');
+		cell.className = className;
+		if (colspan) {
+			cell.colSpan = colspan;
+		}
+		cell.appendChild(document.createTextNode(caption));
+		currentRow.appendChild(cell);
+	}
+
+	// Platform parameters
+	addRow();
+	for (var i = 0; i < PLATFORM_PARAMS.length; ++i) {
+		var param = PLATFORM_PARAMS[i];
+		addRow();
+		if (param === 'PLATFORM_NAME') {
+			addCell('group-title', param);
+		} else {
+			addCell('platform-param-name', removePrefix(param));
+		}
+		for (var j = 0; j < platformIDs.length; ++j) {
+			var platformID = platformIDs[j];
+			var value = cl.getPlatformInfo(platformID, cl[param]);
+			addCell(
+				param === 'PLATFORM_NAME' ? 'group-title' : 'platform-param-value',
+				interpretValue(cl, param, value),
+				platformDeviceIDs[j].length
+			);
+		}
+	}
+
+	// Device parameters
+	addRow();
+	for (var i = 0; i < DEVICE_PARAMS.length; ++i) {
+		var param = DEVICE_PARAMS[i];
+		addRow();
+		if (param === 'DEVICE_NAME') {
+			addCell('group-title', param);
+		} else {
+			addCell('device-param-name', removePrefix(param));
+		}
+		for (var j = 0; j < platformIDs.length; ++j) {
+			for (var k = 0; k < platformDeviceIDs[j].length; ++k) {
+				var device = platformDeviceIDs[j][k];
+				var value = cl.getDeviceInfo(device, cl[param]);
+				addCell(
+					param === 'DEVICE_NAME' ? 'group-title' : 'device-param-value',
+					interpretValue(cl, param, value)
+				);
+			}
+		}
+	}
+}
+
+window.addEventListener('load', createTable, false);
+
+</script>
+
+</head>
+<body>
+
+<h1>WebCL manifest</h1>
+
+<p>Displays all parameters of all WebCL platforms and devices available on your system. So far this has only been tested with <a href="http://code.google.com/p/webcl/">Samsung's WebCL prototype for WebKit</a> and is <b>known incompatible</b> with <a href="http://webcl.nokiaresearch.com/">Nokia's WebCL extension for Firefox</a>.</p>
+
+</body>
+</html>
