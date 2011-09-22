@@ -39,8 +39,7 @@ start Safari using `./Tools/Scripts/run-safari`? Also note that this may result
 in multiple copies of Safari running, so be careful to use the correct one.
 
 I don't currently have 32-bit Windows or Linux installed, so I can't work
-towards supporting the Nokia prototype. Also, the Samsung prototype is closer to
-WebGL, so its API is more likely to win anyway.
+towards supporting the Nokia prototype.
 
 ### Could not create WebCL compute context.
 
